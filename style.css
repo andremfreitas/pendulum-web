@@ -1,0 +1,334 @@
+/* Layout: the pendulum fills the stage on the left; a narrow
+   instrument panel on the right holds controls and the spectrum.
+   Below 860px the panel stacks under a square stage. */
+:root {
+  --bg:      #f4f5f7;
+  --surface: #ffffff;
+  --ink:     #14171c;
+  --muted:   #646b78;
+  --line:    #dadde3;
+  --accent:  #2747c9;
+  --accent-soft: rgba(39, 71, 201, 0.14);
+
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --step--1: 0.8rem;
+  --step-0:  0.9rem;
+  --step-1:  1.3rem;
+
+  --panel-w: 320px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:      #0e1116;
+    --surface: #161a21;
+    --ink:     #e5e8ee;
+    --muted:   #8b93a3;
+    --line:    #2a303b;
+    --accent:  #8ea2ff;
+    --accent-soft: rgba(142, 162, 255, 0.16);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg:      #0e1116;
+  --surface: #161a21;
+  --ink:     #e5e8ee;
+  --muted:   #8b93a3;
+  --line:    #2a303b;
+  --accent:  #8ea2ff;
+  --accent-soft: rgba(142, 162, 255, 0.16);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 var(--step-0)/1.5 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--panel-w);
+  gap: 32px;
+  height: 100%;
+  padding-block: 24px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(24px, env(safe-area-inset-right, 0px));
+}
+
+/* --- stage ---------------------------------------------------- */
+
+.stage {
+  position: relative;
+  min-width: 0;
+  min-height: 420px;
+}
+
+#chain {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+
+#chain.dragging { cursor: grabbing; }
+
+.hint {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--step--1);
+  pointer-events: none;
+}
+
+/* --- panel ---------------------------------------------------- */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.intro h1 {
+  margin: 0 0 6px;
+  font-size: var(--step-1);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.intro p {
+  margin: 0;
+  color: var(--muted);
+}
+
+i { font-family: var(--font-sans); font-style: italic; }
+
+/* transport */
+
+.transport {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  font: 500 var(--step-0) var(--font-sans);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+button:hover { border-color: var(--muted); }
+
+button.primary {
+  min-width: 84px;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+}
+
+button:focus-visible,
+input:focus-visible + label,
+input[type="range"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* controls */
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  row-gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.row label,
+.row legend {
+  padding: 0;
+  font-weight: 500;
+}
+
+.row output {
+  font: 400 var(--step--1) var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.row input[type="range"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+
+/* segmented control */
+
+.seg legend { float: left; }
+
+.segs {
+  grid-column: 1 / -1;
+  display: flex;
+  margin-top: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.segs input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segs label {
+  flex: 1;
+  text-align: center;
+  padding: 5px 0;
+  font-weight: 400;
+  color: var(--muted);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.segs label + input + label { border-left: 1px solid var(--line); }
+
+.segs input:checked + label {
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 500;
+}
+
+/* spectrum */
+
+.spectrum { margin: 0; }
+
+.spectrum figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.key {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+  font-size: var(--step--1);
+  color: var(--muted);
+}
+
+.key b {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.key b.avg { background: var(--accent); }
+.key b.now { background: var(--muted); opacity: 0.5; margin-left: 6px; }
+
+#spectrum {
+  display: block;
+  width: 100%;
+  height: 170px;
+}
+
+/* readout */
+
+.readout {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.readout dt {
+  font-size: var(--step--1);
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.readout dd {
+  margin: 0;
+  font: 400 var(--step--1) var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.status {
+  margin: -8px 0 0;
+  min-height: 1.5em;
+  font-size: var(--step--1);
+  color: var(--accent);
+}
+
+.note {
+  margin: auto 0 0;
+  font-size: var(--step--1);
+  color: var(--muted);
+}
+
+/* --- narrow --------------------------------------------------- */
+
+@media (max-width: 860px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    gap: 20px;
+    padding-block: 16px;
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  .stage {
+    min-height: 0;
+    aspect-ratio: 1;
+    max-width: 100%;
+    max-height: 80vh;
+    order: 1;
+  }
+
+  .panel { display: contents; }
+  .intro { order: 0; }
+  .transport { order: 2; }
+  .controls { order: 3; }
+  .spectrum { order: 4; }
+  .readout { order: 5; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .status { order: 6; margin: 0; }
+  .note { order: 7; margin: 0; }
+}

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pendulum Cascade</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Play with a forced N-link pendulum in your browser and watch energy cascade from large links to small ones.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<main class="app">
+
+  <section class="stage" aria-label="Pendulum">
+    <canvas id="chain" aria-label="Animated N-link pendulum. Drag a link to flick it."></canvas>
+    <p class="hint">Drag a link to flick it</p>
+  </section>
+
+  <aside class="panel">
+
+    <header class="intro">
+      <h1>Pendulum Cascade</h1>
+      <p>A chain of <span id="nlabel">12</span> rigid links, each half the length and mass of the one before. Forcing twists the first two links; energy cascades down the chain to the small links, where viscosity removes it.</p>
+    </header>
+
+    <div class="transport">
+      <button id="play" type="button" class="primary" aria-pressed="true">Pause</button>
+      <button id="reset" type="button">Restart</button>
+    </div>
+
+    <form id="controls" class="controls" autocomplete="off">
+
+      <div class="row">
+        <label for="n">Links <i>N</i></label>
+        <output for="n" id="n-out">12</output>
+        <input id="n" type="range" min="2" max="24" step="1" value="12">
+      </div>
+
+      <div class="row">
+        <label for="nu">Viscosity <i>ν</i></label>
+        <output for="nu" id="nu-out"></output>
+        <input id="nu" type="range" min="0" max="1" step="0.001" data-log="1e-8 1e-2" data-value="1e-4">
+      </div>
+
+      <fieldset class="row seg">
+        <legend>Forcing</legend>
+        <div class="segs">
+          <input type="radio" name="typ" id="typ1" value="1" checked><label for="typ1">Periodic</label>
+          <input type="radio" name="typ" id="typ2" value="2"><label for="typ2">Feedback</label>
+          <input type="radio" name="typ" id="typ0" value="0"><label for="typ0">Off</label>
+        </div>
+      </fieldset>
+
+      <div class="row">
+        <label for="amf">Amplitude <i>A</i></label>
+        <output for="amf" id="amf-out"></output>
+        <input id="amf" type="range" min="0" max="3" step="0.01" value="1">
+      </div>
+
+      <div class="row">
+        <label for="omf" id="omf-label">Frequency <i>ω<sub>f</sub></i></label>
+        <output for="omf" id="omf-out"></output>
+        <input id="omf" type="range" min="0" max="1" step="0.001" data-log="0.01 10" data-value="1">
+      </div>
+
+      <div class="row">
+        <label for="gr">Gravity <i>g</i></label>
+        <output for="gr" id="gr-out"></output>
+        <input id="gr" type="range" min="0" max="5" step="0.01" value="0">
+      </div>
+
+      <div class="row">
+        <label for="speed">Speed</label>
+        <output for="speed" id="speed-out"></output>
+        <input id="speed" type="range" min="0" max="1" step="0.001" data-log="0.1 50" data-value="2">
+      </div>
+
+    </form>
+
+    <figure class="spectrum">
+      <figcaption>
+        <span>Energy per link <i>E<sub>k</sub></i></span>
+        <span class="key"><b class="avg"></b>time average <b class="now"></b>now</span>
+      </figcaption>
+      <canvas id="spectrum" aria-label="Energy per link against link number, log scale"></canvas>
+    </figure>
+
+    <dl class="readout" aria-live="off">
+      <div><dt>time</dt><dd id="r-time">0</dd></div>
+      <div><dt>energy</dt><dd id="r-erg">0</dd></div>
+      <div><dt>injected</dt><dd id="r-pow">0</dd></div>
+      <div><dt>dissipated</dt><dd id="r-dis">0</dd></div>
+    </dl>
+
+    <p id="status" class="status" role="status"></p>
+
+    <p class="note">The simulation integrates the true 1:2 chain. The drawing uses a gentler taper so the small links stay visible.</p>
+
+  </aside>
+
+</main>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
