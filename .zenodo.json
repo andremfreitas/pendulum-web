@@ -1,0 +1,23 @@
+{
+  "title": "Pendulum Cascade: interactive simulation of the hierarchical pendulum chain",
+  "upload_type": "software",
+  "description": "<p>Static web page that runs the forced, dissipative hierarchical pendulum chain live in the browser. The integrator is a port of the Fortran code used in the accompanying paper (IMEX-SSP3(4,3,3) scheme, link lengths and masses halving along the chain) and agrees with it to a relative error of about 1e-9 after 2000 steps. Users can change the number of links, the viscosity, the forcing and gravity, flick individual links, and follow the time-averaged energy of each link. Live version: https://andremfreitas.github.io/pendulum-web/</p>",
+  "creators": [
+    {
+      "name": "Freitas, André",
+      "affiliation": "Department of Physics and INFN, University of Rome Tor Vergata, Rome, Italy"
+    },
+    {
+      "name": "Tuteri, Flavio",
+      "affiliation": "Laboratoire de Physique de l'École normale supérieure, ENS, Université PSL, CNRS, Sorbonne Université, Université Paris Cité, Paris, France"
+    }
+  ],
+  "license": "MIT",
+  "keywords": [
+    "turbulence",
+    "energy cascade",
+    "pendulum chain",
+    "hierarchical systems",
+    "interactive simulation"
+  ]
+}
