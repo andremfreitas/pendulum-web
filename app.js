@@ -25,6 +25,7 @@ const ui = {
     chain: $('chain'),
     spectrum: $('spectrum'),
     play: $('play'),
+    sound: $('sound'),
     reset: $('reset'),
     status: $('status'),
     nlabel: $('nlabel'),
@@ -79,6 +80,7 @@ function build() {
     trail = [];
     pow = dis = 0.0;
     drag = null;
+    resetSound();
 
     // run a little so the first frame is already in motion
     const t0 = performance.now();
@@ -199,6 +201,7 @@ function setRunning(on) {
 }
 
 ui.play.addEventListener('click', () => setRunning(!running));
+ui.sound.addEventListener('click', () => setSound(!soundOn));
 ui.reset.addEventListener('click', () => { setStatus(''); build(); });
 
 document.addEventListener('keydown', e => {
@@ -528,6 +531,103 @@ function drawSpectrum() {
 }
 
 // ------------------------------------------------------------ |
+// sound: the pitch follows how fast the last link spins        |
+//
+// The map adapts: the running mean of log|omega_N| sits at the
+// centre pitch and its spread sets the range, so the tone stays
+// audible whatever the parameters. The tip's horizontal position
+// sets the stereo pan.
+
+const PITCH_CENTRE = 220.0;  // Hz
+const PITCH_SPAN   = 1.5;    // octaves either side of the centre
+const SOUND_MEMORY = 3.0;    // s, memory of the adaptive map
+
+let audio = null;
+let soundOn = false;
+let logW = null, logVar = 1.0;
+
+function resetSound() {
+    logW = null;
+    logVar = 1.0;
+}
+
+function startAudio() {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return false;
+
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.value = PITCH_CENTRE;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 1800;
+
+    const gain = ctx.createGain();
+    gain.gain.value = 0.0;
+
+    const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+
+    osc.connect(filter).connect(gain);
+    if (pan) gain.connect(pan).connect(ctx.destination);
+    else gain.connect(ctx.destination);
+    osc.start();
+
+    audio = { ctx, osc, gain, pan };
+    return true;
+}
+
+function setSound(on) {
+    if (on && !audio && !startAudio()) {
+        setStatus('This browser cannot play sound.');
+        on = false;
+    }
+    soundOn = on;
+    if (audio) {
+        if (on) audio.ctx.resume();
+        else audio.gain.gain.setTargetAtTime(0.0, audio.ctx.currentTime, 0.05);
+    }
+    ui.sound.textContent = on ? 'Mute' : 'Listen';
+    ui.sound.setAttribute('aria-pressed', String(on));
+}
+
+function updateSound(realDt) {
+    if (!audio || !soundOn) return;
+    const t = audio.ctx.currentTime;
+
+    if (!running) {
+        audio.gain.gain.setTargetAtTime(0.0, t, 0.08);
+        return;
+    }
+
+    const lw = Math.log2(Math.abs(sim.omega[params.n - 1]) + 1e-9);
+    if (logW === null) logW = lw;
+    const a = 1.0 - Math.exp(-realDt / SOUND_MEMORY);
+    logW += a * (lw - logW);
+    logVar += a * ((lw - logW) ** 2 - logVar);
+
+    // standardised deviation from the running mean
+    const z = (lw - logW) / Math.sqrt(logVar + 1e-6);
+    const oct = Math.max(-PITCH_SPAN, Math.min(PITCH_SPAN, 0.6 * z));
+    const loud = Math.max(0.0, Math.min(1.0, (z + 1.0) / 3.0));
+
+    audio.osc.frequency.setTargetAtTime(PITCH_CENTRE * 2 ** oct, t, 0.03);
+    audio.gain.gain.setTargetAtTime(0.05 + 0.05 * loud, t, 0.05);
+    if (audio.pan) {
+        const [x] = tip();
+        audio.pan.pan.setTargetAtTime(Math.max(-1.0, Math.min(1.0, x)), t, 0.05);
+    }
+}
+
+// animation frames stop in a background tab, so stop the tone too
+document.addEventListener('visibilitychange', () => {
+    if (!audio) return;
+    if (document.hidden) audio.ctx.suspend();
+    else if (soundOn) audio.ctx.resume();
+});
+
+// ------------------------------------------------------------ |
 // main loop                                                    |
 
 let last = performance.now();
@@ -576,6 +676,7 @@ function loop(now) {
 
     if (running) advance(realDt);
     else rate = params.speed;
+    updateSound(realDt);
 
     drawChain();
     drawSpectrum();
