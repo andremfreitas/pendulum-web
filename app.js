@@ -25,7 +25,6 @@ const ui = {
     chain: $('chain'),
     spectrum: $('spectrum'),
     play: $('play'),
-    sound: $('sound'),
     reset: $('reset'),
     status: $('status'),
     nlabel: $('nlabel'),
@@ -201,7 +200,6 @@ function setRunning(on) {
 }
 
 ui.play.addEventListener('click', () => setRunning(!running));
-ui.sound.addEventListener('click', () => setSound(!soundOn));
 ui.reset.addEventListener('click', () => { setStatus(''); build(); });
 
 document.addEventListener('keydown', e => {
@@ -349,6 +347,18 @@ function drawChain() {
         ctx.stroke();
         ctx.strokeStyle = colors.ink;
     }
+
+    // glow of the masses whose note is sounding
+    ctx.fillStyle = colors.accent;
+    for (let i = 0; i < n; i++) {
+        if (!(levels[i] > 0.02)) continue;
+        const f = n > 1 ? i / (n - 1) : 0;
+        ctx.globalAlpha = 0.45 * levels[i];
+        ctx.beginPath();
+        ctx.arc(joints[2 * i + 2], joints[2 * i + 3], (3.6 - 2.2 * f) * dpr * (1 + 2.5 * levels[i]), 0, 2 * Math.PI);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
 
     // masses
     ctx.fillStyle = colors.ink;
@@ -555,73 +565,157 @@ function drawSpectrum() {
 }
 
 // ------------------------------------------------------------ |
-// sound: the pitch follows how fast the last link spins        |
+// sound                                                        |
 //
-// The map adapts: the running mean of log|omega_N| sits at the
-// centre pitch and its spread sets the range, so the tone stays
-// audible whatever the parameters. The tip's horizontal position
-// sets the stereo pan.
+// Two ways to listen. Both only read the state of the chain.
+//
+//   Tip      one tone whose pitch follows how fast the last link
+//            spins. The map adapts: the running mean of
+//            log|omega_N| sits at the centre pitch and its spread
+//            sets the range.
+//   Cascade  one note per link on a pentatonic scale, large links
+//            low and small links high. A note swells when its link
+//            holds more energy than its time average, so a burst
+//            travelling down the chain is heard as a rising phrase.
+//
+// Panning follows the drawn horizontal position. All voices share
+// a soft low-pass, a generated reverb and a limiter.
 
-const PITCH_CENTRE = 220.0;  // Hz
+const PITCH_CENTRE = 220.0;  // Hz, tip tone
 const PITCH_SPAN   = 1.5;    // octaves either side of the centre
-const SOUND_MEMORY = 3.0;    // s, memory of the adaptive map
+const SOUND_MEMORY = 3.0;    // s, memory of the adaptive tip map
+
+const SCALE = [0, 2, 4, 7, 9];   // major pentatonic, in semitones
+const ROOT = 98.0;               // Hz (G2), the note of the first link
+const DRONE = 0.12;              // level of a note at its average energy
+const SWELL = [0.6, 3.0];        // E_k / <E_k> from silent swell to full
+const REVERB_TIME = 2.8;         // s, decay to -60 dB
 
 let audio = null;
-let soundOn = false;
+let soundMode = 'off';
 let logW = null, logVar = 1.0;
+let levels = new Float64Array(0);   // swell of each note, for the drawing
+
+const smoothstep = (a, b, x) => {
+    const t = Math.max(0.0, Math.min(1.0, (x - a) / (b - a)));
+    return t * t * (3.0 - 2.0 * t);
+};
+
+const noteFreq = k => ROOT * 2 ** ((12 * Math.floor(k / 5) + SCALE[k % 5]) / 12);
 
 function resetSound() {
     logW = null;
     logVar = 1.0;
+    levels = new Float64Array(params.n);
+    if (audio && soundMode === 'cascade') buildVoices();
+}
+
+// exponentially decaying stereo noise, the impulse response of a soft room
+function impulse(ctx, T) {
+    const len = Math.round(T * ctx.sampleRate);
+    const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+        const d = buf.getChannelData(c);
+        for (let i = 0; i < len; i++) d[i] = (2 * Math.random() - 1) * Math.exp(-6.9 * i / len);
+    }
+    return buf;
+}
+
+function voice(ctx, src) {
+    const gain = ctx.createGain();
+    gain.gain.value = 0.0;
+    const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    src.connect(gain);
+    if (pan) gain.connect(pan).connect(audio.bus);
+    else gain.connect(audio.bus);
+    return { gain, pan };
 }
 
 function startAudio() {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return false;
-
     const ctx = new Ctx();
+
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -18;
+    limiter.ratio.value = 4;
+    const master = ctx.createGain();
+    master.gain.value = 0.0;
+    limiter.connect(master).connect(ctx.destination);
+
+    const bus = ctx.createGain();
+    const soft = ctx.createBiquadFilter();
+    soft.type = 'lowpass';
+    soft.frequency.value = 3500;
+    bus.connect(soft).connect(limiter);
+
+    const reverb = ctx.createConvolver();
+    reverb.buffer = impulse(ctx, REVERB_TIME);
+    const wet = ctx.createGain();
+    wet.gain.value = 0.35;
+    soft.connect(reverb).connect(wet).connect(limiter);
+
+    // fundamental with a little second and third harmonic
+    const wave = ctx.createPeriodicWave(new Float32Array([0, 0, 0, 0]), new Float32Array([0, 1, 0.22, 0.06]));
+
+    audio = { ctx, master, bus, wave, tip: null, voices: [] };
+
     const osc = ctx.createOscillator();
     osc.type = 'triangle';
     osc.frequency.value = PITCH_CENTRE;
-
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.frequency.value = 1800;
-
-    const gain = ctx.createGain();
-    gain.gain.value = 0.0;
-
-    const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
-
-    osc.connect(filter).connect(gain);
-    if (pan) gain.connect(pan).connect(ctx.destination);
-    else gain.connect(ctx.destination);
+    osc.connect(filter);
+    audio.tip = { osc, ...voice(ctx, filter) };
     osc.start();
 
-    audio = { ctx, osc, gain, pan };
     return true;
 }
 
-function setSound(on) {
-    if (on && !audio && !startAudio()) {
-        setStatus('This browser cannot play sound.');
-        on = false;
+function buildVoices() {
+    const { ctx } = audio;
+    for (const v of audio.voices) {
+        v.gain.gain.setTargetAtTime(0.0, ctx.currentTime, 0.05);
+        v.osc.stop(ctx.currentTime + 0.3);
     }
-    soundOn = on;
-    if (audio) {
-        if (on) audio.ctx.resume();
-        else audio.gain.gain.setTargetAtTime(0.0, audio.ctx.currentTime, 0.05);
+    audio.voices = [];
+    for (let k = 0; k < params.n; k++) {
+        const osc = ctx.createOscillator();
+        osc.setPeriodicWave(audio.wave);
+        osc.frequency.value = noteFreq(k);
+        audio.voices.push({ osc, ...voice(ctx, osc) });
+        osc.start();
     }
-    ui.sound.textContent = on ? 'Mute' : 'Listen';
-    ui.sound.setAttribute('aria-pressed', String(on));
 }
 
-function updateSound(realDt) {
-    if (!audio || !soundOn) return;
+function setSoundMode(mode) {
+    if (mode !== 'off' && !audio && !startAudio()) {
+        setStatus('This browser cannot play sound.');
+        $('sound-off').checked = true;
+        mode = 'off';
+    }
+    soundMode = mode;
+    if (!audio) return;
     const t = audio.ctx.currentTime;
+    if (mode === 'off') {
+        audio.master.gain.setTargetAtTime(0.0, t, 0.1);
+        levels.fill(0.0);
+        return;
+    }
+    audio.ctx.resume();
+    audio.master.gain.setTargetAtTime(1.0, t, 0.1);
+    if (mode === 'cascade' && audio.voices.length !== params.n) buildVoices();
+}
 
-    if (!running) {
-        audio.gain.gain.setTargetAtTime(0.0, t, 0.08);
+for (const r of document.querySelectorAll('input[name="sound"]')) {
+    r.addEventListener('change', () => setSoundMode(r.value));
+}
+
+function updateTip(t, realDt, on) {
+    const v = audio.tip;
+    if (!on) {
+        v.gain.gain.setTargetAtTime(0.0, t, 0.08);
         return;
     }
 
@@ -636,19 +730,50 @@ function updateSound(realDt) {
     const oct = Math.max(-PITCH_SPAN, Math.min(PITCH_SPAN, 0.6 * z));
     const loud = Math.max(0.0, Math.min(1.0, (z + 1.0) / 3.0));
 
-    audio.osc.frequency.setTargetAtTime(PITCH_CENTRE * 2 ** oct, t, 0.03);
-    audio.gain.gain.setTargetAtTime(0.05 + 0.05 * loud, t, 0.05);
-    if (audio.pan) {
+    v.osc.frequency.setTargetAtTime(PITCH_CENTRE * 2 ** oct, t, 0.03);
+    v.gain.gain.setTargetAtTime(0.05 + 0.05 * loud, t, 0.05);
+    if (v.pan) {
         const [x] = tip();
-        audio.pan.pan.setTargetAtTime(Math.max(-1.0, Math.min(1.0, x)), t, 0.05);
+        v.pan.pan.setTargetAtTime(Math.max(-1.0, Math.min(1.0, x)), t, 0.05);
     }
 }
 
-// animation frames stop in a background tab, so stop the tone too
+function updateCascade(t, on) {
+    const vs = audio.voices;
+    if (!on || vs.length !== params.n) {
+        for (const v of vs) v.gain.gain.setTargetAtTime(0.0, t, 0.1);
+        levels.fill(0.0);
+        return;
+    }
+
+    const norm = avgW > 0 ? 1 / avgW : 1;
+    let x = 0.0;
+    for (let k = 0; k < params.n; k++) {
+        const s = smoothstep(SWELL[0], SWELL[1], spec[k] / (avg[k] * norm + 1e-300));
+        levels[k] = s;
+
+        // softer as the notes get higher, and shared between more voices
+        const g = 0.3 * 0.93 ** k / Math.sqrt(params.n) * (DRONE + (1 - DRONE) * s);
+        vs[k].gain.gain.setTargetAtTime(g, t, 0.06);
+
+        const dx = disp[k] * Math.sin(sim.theta[k]);
+        if (vs[k].pan) vs[k].pan.pan.setTargetAtTime(Math.max(-1.0, Math.min(1.0, 1.2 * (x + dx / 2))), t, 0.06);
+        x += dx;
+    }
+}
+
+function updateSound(realDt) {
+    if (!audio || soundMode === 'off') return;
+    const t = audio.ctx.currentTime;
+    updateTip(t, realDt, running && soundMode === 'tip');
+    updateCascade(t, running && soundMode === 'cascade');
+}
+
+// animation frames stop in a background tab, so stop the sound too
 document.addEventListener('visibilitychange', () => {
     if (!audio) return;
     if (document.hidden) audio.ctx.suspend();
-    else if (soundOn) audio.ctx.resume();
+    else if (soundMode !== 'off') audio.ctx.resume();
 });
 
 // ------------------------------------------------------------ |

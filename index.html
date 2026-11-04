@@ -63,7 +63,6 @@
     <div class="transport">
       <button id="play" type="button" class="primary" aria-pressed="true">Pause</button>
       <button id="reset" type="button">Restart</button>
-      <button id="sound" type="button" aria-pressed="false" title="Pitch follows how fast the last link spins">Listen</button>
     </div>
 
     <form id="controls" class="controls" autocomplete="off">
@@ -112,6 +111,15 @@
         <output for="speed" id="speed-out"></output>
         <input id="speed" type="range" min="0" max="1" step="0.001" data-log="0.1 50" data-value="2">
       </div>
+
+      <fieldset class="row seg">
+        <legend>Sound</legend>
+        <div class="segs">
+          <input type="radio" name="sound" id="sound-off" value="off" checked><label for="sound-off">Off</label>
+          <input type="radio" name="sound" id="sound-tip" value="tip"><label for="sound-tip" title="Pitch follows how fast the last link spins">Tip</label>
+          <input type="radio" name="sound" id="sound-cascade" value="cascade"><label for="sound-cascade" title="One note per link; a note swells when its link gains energy">Cascade</label>
+        </div>
+      </fieldset>
 
     </form>
 
