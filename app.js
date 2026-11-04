@@ -210,6 +210,30 @@ document.addEventListener('keydown', e => {
 });
 
 // ------------------------------------------------------------ |
+// citation                                                     |
+
+const cite = $('cite');
+const bibtex = $('bibtex');
+let citeTimer = 0;
+
+cite.addEventListener('click', async () => {
+    try {
+        await navigator.clipboard.writeText(bibtex.textContent.trim());
+        cite.textContent = 'Copied';
+        clearTimeout(citeTimer);
+        citeTimer = setTimeout(() => { cite.textContent = 'Copy BibTeX'; }, 2000);
+    } catch {
+        // no clipboard access: show the entry selected for a manual copy
+        bibtex.hidden = false;
+        const range = document.createRange();
+        range.selectNodeContents(bibtex);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+});
+
+// ------------------------------------------------------------ |
 // theme colours, read from the CSS tokens                      |
 
 let colors = {};

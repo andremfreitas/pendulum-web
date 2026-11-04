@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pendulum Cascade</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Play with a forced N-link pendulum in your browser and watch energy cascade from large links to small ones.">
+<meta name="description" content="Play with a forced N-link pendulum in your browser and watch energy cascade from large links to small ones. Companion to the paper Designing turbulence through hierarchies (arXiv:2611.04706).">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
 <!-- link previews; images are made by tools/og.py -->
 <meta property="og:type" content="website">
 <meta property="og:title" content="Pendulum Cascade">
-<meta property="og:description" content="Play with a forced N-link pendulum in your browser and watch energy cascade from large links to small ones.">
+<meta property="og:description" content="Play with a forced N-link pendulum in your browser and watch energy cascade from large links to small ones. Companion to the paper Designing turbulence through hierarchies (arXiv:2611.04706).">
 <meta property="og:url" content="https://andremfreitas.github.io/pendulum-web/">
 <meta property="og:image" content="https://andremfreitas.github.io/pendulum-web/og-dark.png">
 <meta property="og:image:width" content="1200">
@@ -39,6 +39,26 @@
       <h1>Pendulum Cascade</h1>
       <p>A chain of <span id="nlabel">12</span> rigid links, each half the length and mass of the one before. Forcing twists the first two links; energy cascades down the chain to the small links, where viscosity removes it.</p>
     </header>
+
+    <section class="paper" aria-labelledby="paper-title">
+      <p class="eyebrow">From the paper</p>
+      <h2 id="paper-title"><a href="https://arxiv.org/abs/2611.04706">Designing turbulence through hierarchies</a></h2>
+      <p class="authors">Flavio Tuteri and André Freitas · arXiv:2611.04706, 2026</p>
+      <div class="paper-links">
+        <a href="https://arxiv.org/abs/2611.04706">Abstract</a>
+        <a href="https://arxiv.org/pdf/2611.04706">PDF</a>
+        <button id="cite" type="button" class="link">Copy BibTeX</button>
+      </div>
+      <pre id="bibtex" hidden>@misc{tuteri2026designing,
+  title         = {Designing turbulence through hierarchies},
+  author        = {Tuteri, Flavio and Freitas, Andr{\'e}},
+  year          = {2026},
+  eprint        = {2611.04706},
+  archivePrefix = {arXiv},
+  primaryClass  = {physics.flu-dyn},
+  url           = {https://arxiv.org/abs/2611.04706}
+}</pre>
+    </section>
 
     <div class="transport">
       <button id="play" type="button" class="primary" aria-pressed="true">Pause</button>
