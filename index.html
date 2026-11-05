@@ -74,7 +74,7 @@
       </div>
 
       <div class="row">
-        <label for="nu">Viscosity <i>ν</i></label>
+        <label for="nu" title="Bending viscosity: friction at the joints, strongest on the small links">Bending viscosity <i>η</i></label>
         <output for="nu" id="nu-out"></output>
         <input id="nu" type="range" min="0" max="1" step="0.001" data-log="1e-8 1e-2" data-value="1e-4">
       </div>
@@ -88,14 +88,14 @@
         </div>
       </fieldset>
 
-      <div class="row">
-        <label for="amf">Amplitude <i>A</i></label>
+      <div class="row" id="amf-row">
+        <label for="amf" id="amf-label">Amplitude <i>a<sub>f</sub></i></label>
         <output for="amf" id="amf-out"></output>
         <input id="amf" type="range" min="0" max="3" step="0.01" value="1">
       </div>
 
-      <div class="row">
-        <label for="omf" id="omf-label">Frequency <i>ω<sub>f</sub></i></label>
+      <div class="row" id="omf-row">
+        <label for="omf" id="omf-label" title="Forcing frequency">Frequency <i>ω<sub>f</sub></i></label>
         <output for="omf" id="omf-out"></output>
         <input id="omf" type="range" min="0" max="1" step="0.001" data-log="0.01 10" data-value="1">
       </div>

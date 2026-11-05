@@ -1,4 +1,4 @@
-import { Chain, FORCING_FEEDBACK } from './sim.js';
+import { Chain, FORCING_PERIODIC, FORCING_FEEDBACK } from './sim.js';
 
 // ------------------------------------------------------------ |
 // parameters                                                   |
@@ -28,7 +28,9 @@ const ui = {
     reset: $('reset'),
     status: $('status'),
     nlabel: $('nlabel'),
-    omfLabel: $('omf-label'),
+    ampRow: $('amf-row'),
+    ampLabel: $('amf-label'),
+    omfRow: $('omf-row'),
     time: $('r-time'),
     erg: $('r-erg'),
     pow: $('r-pow'),
@@ -176,14 +178,49 @@ for (const id of ['n', 'nu', 'amf', 'omf', 'gr', 'speed']) {
     sliders[id] = { input, range, read };
 }
 
+// Each forcing mode keeps its own settings. Periodic forcing has an
+// amplitude a_f and a frequency omega_f; feedback forcing has an
+// injection rate epsilon_0 and the paper's fixed regularisation
+// frequency omega_r (both carried by sim.amf and sim.omf).
+
+const OMEGA_R = 0.1;
+
+const forcing = {
+    [FORCING_PERIODIC]: {
+        amf: 1.0, omf: 1.0, max: 3,
+        label: 'Amplitude <i>a<sub>f</sub></i>', hint: 'Torque amplitude',
+    },
+    [FORCING_FEEDBACK]: {
+        amf: 0.1, omf: OMEGA_R, max: 1,
+        label: 'Injection rate <i>ε</i><sub>0</sub>', hint: 'Energy injection rate',
+    },
+};
+
 function readForcing() {
-    const checked = document.querySelector('input[name="typ"]:checked');
-    params.typ = Number(checked.value);
-    const feedback = params.typ === FORCING_FEEDBACK;
-    ui.omfLabel.innerHTML = feedback ? 'Width <i>ε</i>' : 'Frequency <i>ω<sub>f</sub></i>';
-    const off = params.typ === 0;
-    sliders.amf.input.disabled = off;
-    sliders.omf.input.disabled = off;
+    const prev = forcing[params.typ];
+    if (prev) {
+        prev.amf = params.amf;
+        if (params.typ === FORCING_PERIODIC) prev.omf = params.omf;
+    }
+
+    params.typ = Number(document.querySelector('input[name="typ"]:checked').value);
+    const f = forcing[params.typ];
+    ui.ampRow.hidden = !f;
+    ui.omfRow.hidden = params.typ !== FORCING_PERIODIC;
+    if (!f) return;
+
+    ui.ampLabel.innerHTML = f.label;
+    ui.ampLabel.title = f.hint;
+    sliders.amf.input.max = String(f.max);
+    sliders.amf.range.set(f.amf);
+    sliders.amf.read();
+
+    if (params.typ === FORCING_PERIODIC) {
+        sliders.omf.range.set(f.omf);
+        sliders.omf.read();
+    } else {
+        params.omf = f.omf;
+    }
 }
 
 for (const r of document.querySelectorAll('input[name="typ"]')) {
