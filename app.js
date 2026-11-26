@@ -726,7 +726,62 @@ function buildVoices() {
     }
 }
 
+// Phones need two extra steps. Audio may only start inside a tap,
+// and iOS mutes Web Audio while the ring/silent switch is on unless
+// the page asks for media playback.
+
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
+
+let silentEl = null;
+
+// half a second of 8-bit silence as a WAV file
+function silentWav() {
+    const n = 4000, buf = new DataView(new ArrayBuffer(44 + n));
+    const str = (o, s) => { for (let i = 0; i < s.length; i++) buf.setUint8(o + i, s.charCodeAt(i)); };
+    str(0, 'RIFF'); buf.setUint32(4, 36 + n, true); str(8, 'WAVEfmt ');
+    buf.setUint32(16, 16, true); buf.setUint16(20, 1, true); buf.setUint16(22, 1, true);
+    buf.setUint32(24, 8000, true); buf.setUint32(28, 8000, true);
+    buf.setUint16(32, 1, true); buf.setUint16(34, 8, true);
+    str(36, 'data'); buf.setUint32(40, n, true);
+    for (let i = 0; i < n; i++) buf.setUint8(44 + i, 128);
+    return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+}
+
+// ask for the playback audio session, which ignores the silent switch:
+// directly where supported (Safari 17+), otherwise by playing a silent
+// media element, which moves older iOS to the same session
+function preferPlayback(on) {
+    if (navigator.audioSession) {
+        try { navigator.audioSession.type = on ? 'playback' : 'auto'; } catch { /* read-only */ }
+        return;
+    }
+    if (!isIOS) return;
+    if (on) {
+        if (!silentEl) {
+            silentEl = new Audio(silentWav());
+            silentEl.loop = true;
+            silentEl.setAttribute('playsinline', '');
+        }
+        silentEl.play().catch(() => {});
+    } else if (silentEl) {
+        silentEl.pause();
+    }
+}
+
+// resume the context and start a one-sample buffer, which older iOS
+// needs to happen inside the tap
+function unlockAudio() {
+    const { ctx } = audio;
+    if (ctx.state !== 'running') ctx.resume();
+    const src = ctx.createBufferSource();
+    src.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+    src.connect(ctx.destination);
+    src.start();
+}
+
 function setSoundMode(mode) {
+    if (mode !== 'off') preferPlayback(true);
     if (mode !== 'off' && !audio && !startAudio()) {
         setStatus('This browser cannot play sound.');
         $('sound-off').checked = true;
@@ -738,11 +793,25 @@ function setSoundMode(mode) {
     if (mode === 'off') {
         audio.master.gain.setTargetAtTime(0.0, t, 0.1);
         levels.fill(0.0);
+        preferPlayback(false);
         return;
     }
-    audio.ctx.resume();
+    unlockAudio();
     audio.master.gain.setTargetAtTime(1.0, t, 0.1);
     if (mode === 'cascade' && audio.voices.length !== params.n) buildVoices();
+
+    // still blocked: the browser wants a plain tap on the page
+    setTimeout(() => {
+        if (audio && soundMode !== 'off' && audio.ctx.state !== 'running') setStatus('Tap the page to start the sound.');
+    }, 600);
+}
+
+// the next tap anywhere resumes audio that the browser kept paused,
+// after a blocked start, a phone call or a return to the tab
+for (const type of ['pointerup', 'touchend']) {
+    document.addEventListener(type, () => {
+        if (audio && soundMode !== 'off' && audio.ctx.state !== 'running') unlockAudio();
+    }, { passive: true });
 }
 
 for (const r of document.querySelectorAll('input[name="sound"]')) {
